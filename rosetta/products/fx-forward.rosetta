@@ -1,0 +1,150 @@
+namespace com.cdm.product.fx
+version "1.0.0"
+
+import com.cdm.base.*
+import com.cdm.product.common.*
+
+// FX Forward Product Definition
+// Represents a foreign exchange forward contract where two parties agree to
+// exchange currencies at a future settlement date at a predetermined rate
+
+type FxForward extends Product:
+    [metadata key]
+    
+    // Core economic terms
+    exchangedCurrency1 FxLeg (1..1)
+        <"First currency leg of the FX transaction">
+    exchangedCurrency2 FxLeg (1..1)
+        <"Second currency leg of the FX transaction">
+    
+    valueDate date (1..1)
+        <"Settlement date when currencies will be exchanged">
+        
+    forwardRate number (1..1)
+        <"Agreed forward exchange rate">
+    
+    // Product identification
+    productIdentifier ProductIdentifier (0..*)
+        <"External identifiers for this FX Forward">
+    
+    // Validation: Currencies must be different
+    condition DifferentCurrencies:
+        exchangedCurrency1 -> currency <> exchangedCurrency2 -> currency
+
+// Represents one side of the FX exchange
+type FxLeg:
+    payerReceiver PayerReceiverEnum (1..1)
+        <"Whether party is paying or receiving this currency">
+    
+    currency string (1..1)
+        <"ISO 4217 currency code (e.g., USD, EUR, GBP)">
+    
+    amount number (1..1)
+        <"Notional amount in the specified currency">
+    
+    settlementInformation SettlementInformation (0..1)
+        <"Payment and settlement details">
+
+// Settlement details for currency delivery
+type SettlementInformation:
+    settlementMethod SettlementMethodEnum (1..1)
+        <"Physical delivery or cash settlement">
+    
+    settlementCurrency string (0..1)
+        <"Currency for cash settlement, if applicable">
+
+// Enumeration for payer/receiver designation
+enum PayerReceiverEnum:
+    Payer <"Party pays this currency">
+    Receiver <"Party receives this currency">
+
+// Settlement method options
+enum SettlementMethodEnum:
+    Physical <"Physical delivery of currencies">
+    Cash <"Cash settlement in a single currency">
+    NonDeliverable <"NDF - settled in a single currency based on fixing rate">
+
+// Product identification
+type ProductIdentifier:
+    identifier string (1..1)
+        <"Unique identifier value">
+    
+    source ProductIdSource (1..1)
+        <"System or authority that assigned the identifier">
+
+type ProductIdSource:
+    name string (1..1)
+        <"Name of identifier source (e.g., CUSIP, ISIN, Bloomberg)">
+
+// Base product type (simplified for this example)
+type Product:
+    productType string (0..1)
+        <"Classification of financial product">
+
+// Function to calculate the inverse forward rate
+func CalculateInverseRate:
+    inputs:
+        fxForward FxForward (1..1)
+    output:
+        inverseRate number (1..1)
+    
+    set inverseRate:
+        1.0 / fxForward -> forwardRate
+
+// Function to validate settlement date is in the future
+func ValidateValueDate:
+    inputs:
+        fxForward FxForward (1..1)
+        tradeDate date (1..1)
+    output:
+        isValid boolean (1..1)
+    
+    set isValid:
+        fxForward -> valueDate > tradeDate
+
+// Function to determine notional in base currency
+func GetBaseCurrencyNotional:
+    inputs:
+        fxForward FxForward (1..1)
+        baseCurrency string (1..1)
+    output:
+        notional number (1..1)
+    
+    set notional:
+        if fxForward -> exchangedCurrency1 -> currency = baseCurrency
+        then fxForward -> exchangedCurrency1 -> amount
+        else if fxForward -> exchangedCurrency2 -> currency = baseCurrency
+        then fxForward -> exchangedCurrency2 -> amount
+        else 0.0
+
+// Function to validate FX Forward structure
+func ValidateFxForward:
+    inputs:
+        fxForward FxForward (1..1)
+    output:
+        validationResult ValidationResult (1..1)
+    
+    set validationResult -> isValid:
+        // Check both legs exist
+        fxForward -> exchangedCurrency1 exists
+        and fxForward -> exchangedCurrency2 exists
+        // Check currencies are different
+        and (fxForward -> exchangedCurrency1 -> currency 
+            <> fxForward -> exchangedCurrency2 -> currency)
+        // Check amounts are positive
+        and fxForward -> exchangedCurrency1 -> amount > 0
+        and fxForward -> exchangedCurrency2 -> amount > 0
+        // Check forward rate is positive
+        and fxForward -> forwardRate > 0
+        // Check one leg pays, one receives
+        and (
+            (fxForward -> exchangedCurrency1 -> payerReceiver = PayerReceiverEnum -> Payer
+             and fxForward -> exchangedCurrency2 -> payerReceiver = PayerReceiverEnum -> Receiver)
+            or
+            (fxForward -> exchangedCurrency1 -> payerReceiver = PayerReceiverEnum -> Receiver
+             and fxForward -> exchangedCurrency2 -> payerReceiver = PayerReceiverEnum -> Payer)
+        )
+
+type ValidationResult:
+    isValid boolean (1..1)
+    errorMessage string (0..1)
