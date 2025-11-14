@@ -32,7 +32,7 @@ cdm-experiments/
 ## 🔧 Technologies
 
 - **Rosetta DSL** - Domain modeling language for CDM definitions
-- **Java 17** - Implementation and integration code
+- **Java 21** - Implementation and integration code
 - **FpML 5.x** - Financial Products Markup Language standard
 - **JUnit 5** - Testing framework
 - **Maven** - Build and dependency management
@@ -99,7 +99,7 @@ Examples of modeling:
 git clone https://github.com/saqibmalik2/cdm-experiments.git
 cd cdm-experiments
 
-# Build project (requires Java 17+)
+# Build project (requires Java 21)
 mvn clean install
 
 # Run example transformations
